@@ -1,0 +1,1558 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Birthday Slides – Click-through Animation (HTML + CSS only)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <style>
+    :root {
+      /* Global container ratio + transition timing */
+      --canvas-radius: 24px;
+      --transition-duration: 0.6s;
+      --transition-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+      /* Color palette approximations for scenes */
+      --grad-1: radial-gradient(circle at top left, #ffe3ff 0, #f6b7e3 30%, #aeb5ff 90%);
+      --grad-2: radial-gradient(circle at top left, #ffe1f0 0, #ffc2d2 40%, #ffd9e7 100%);
+      --grad-3: radial-gradient(circle at top left, #f8ccff 0, #c5a6ff 40%, #a3a8ff 100%);
+      --grad-4: radial-gradient(circle at top, #111827 0, #020617 55%, #000 100%);
+      --grad-5: radial-gradient(circle at top left, #ffe4f0 0, #ffc4da 35%, #ffdfeb 100%);
+      --grad-6: radial-gradient(circle at top left, #f5d6ff 0, #b89dff 45%, #a39bff 100%);
+      --grad-7: radial-gradient(circle at top, #38bdf8 0, #0ea5e9 40%, #0369a1 100%);
+
+      --accent-pink: #ff5f9e;
+      --accent-pink-deep: #f34c7d;
+      --accent-yellow: #ffd76b;
+      --accent-purple: #7b4bff;
+
+      --font-base: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-script: "Brush Script MT", "Segoe Script", "Comic Sans MS", cursive;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: var(--font-base);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 55%, #000 100%);
+      color: #111827;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Root canvas keeps a consistent 16:9 aspect ratio and centers the slides */
+    .birthday-canvas {
+      width: 100%;
+      max-width: 960px;
+      aspect-ratio: 16 / 9;
+      border-radius: var(--canvas-radius);
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      position: relative;
+      background: #000;
+    }
+
+    /* Hide the radios visually, but keep them focusable for accessibility */
+    .slide-toggle {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Slides wrapper */
+    .slides {
+      position: absolute;
+      inset: 0;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(1.03);
+      transition:
+        opacity var(--transition-duration) var(--transition-ease),
+        transform var(--transition-duration) var(--transition-ease);
+      pointer-events: none;
+    }
+
+    .slide-inner {
+      width: min(90%, 820px);
+      height: min(80%, 430px);
+      position: relative;
+    }
+
+    /* Background bokeh circles used on pastel scenes */
+    .bokeh {
+      position: absolute;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.9), transparent 60%);
+      opacity: 0.7;
+      filter: blur(1px);
+    }
+
+    .bokeh--left {
+      width: 130px;
+      height: 130px;
+      left: -40px;
+      top: 18%;
+    }
+
+    .bokeh--right {
+      width: 100px;
+      height: 100px;
+      right: 3%;
+      top: 22%;
+    }
+
+    /* Floating top icons row: ✨, 🎂, 🎀 */
+    .upper-icons {
+      position: absolute;
+      top: 10%;
+      left: 50%;
+      width: 70%;
+      transform: translateX(-50%);
+      display: flex;
+      justify-content: space-between;
+      font-size: clamp(1.4rem, 1.2vw + 1rem, 1.8rem);
+      opacity: 0.9;
+    }
+
+    /* Chat bubble + hearts used on scenes 1–3 */
+    .chat-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.9rem;
+      justify-content: center;
+      height: 100%;
+    }
+
+    .chat-bubble {
+      background: transparent;
+      /* transparent instead of white box */
+      border-radius: 32px;
+      padding: 2rem 2.4rem;
+      box-shadow: none;
+      /* remove card shadow so only text shows */
+      font-size: clamp(1rem, 1.2vw + 0.6rem, 1.3rem);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .chat-bubble .emoji {
+      font-size: 1.4em;
+    }
+
+    .chat-hearts {
+      font-size: 1.4rem;
+    }
+
+    /* CLICKABLE chat bubble only on slide 1 */
+    .chat-bubble--trigger {
+      cursor: pointer;
+      outline: none;
+    }
+
+    .chat-bubble--trigger:focus-visible {
+      outline: 2px solid #ffffff;
+      outline-offset: 4px;
+      text-decoration: underline;
+    }
+
+    /* Reusable primary pill button (Enter My Day / Celebrate / Next Page) */
+    .btn-pill {
+      background: linear-gradient(135deg, #ffb4cf, #ff7c9f);
+      color: #fff;
+      border-radius: 999px;
+      padding: 0.5rem 1.9rem;
+      box-shadow: 0 14px 28px rgba(255, 120, 158, 0.7);
+      font-size: 0.95rem;
+      letter-spacing: 0.04em;
+      text-transform: capitalize;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: none;
+    }
+
+    .btn-pill span.icon {
+      font-size: 1.1rem;
+    }
+
+    /* Navigation controls container (bottom center) */
+    .nav-bar {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 0.5rem;
+      z-index: 20;
+    }
+
+    .nav-btn {
+      border-radius: 999px;
+      border: none;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: rgba(15, 23, 42, 0.85);
+      color: #e5e7eb;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav-btn--accent {
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-pink-deep));
+      color: #fff;
+    }
+
+    .nav-btn:focus-visible {
+      outline: 2px solid #fbbf24;
+      outline-offset: 2px;
+    }
+
+    .nav-btn[disabled] {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    /* Base styling for cake scenes ----------------------------------------- */
+
+    .cake-layout {
+      text-align: center;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.6rem;
+    }
+
+    .cake-title {
+      font-size: clamp(2rem, 2.5vw, 2.8rem);
+      font-weight: 700;
+      color: #ff3c73;
+      text-shadow: 0 0 10px rgba(255, 107, 155, 0.5);
+    }
+
+    .cake-title span.emoji {
+      font-size: 2rem;
+      margin-left: 0.4rem;
+    }
+
+    .cake {
+      width: min(56%, 360px);
+      height: auto;
+      aspect-ratio: 4 / 3;
+      position: relative;
+    }
+
+    .cake-tier {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 24%;
+      border-radius: 22px 22px 10px 10px;
+      background: linear-gradient(180deg, #ff8fb3, #ff4e8b);
+      box-shadow: 0 10px 18px rgba(255, 78, 139, 0.4);
+    }
+
+    .cake-tier--bottom {
+      bottom: 0;
+    }
+
+    .cake-tier--middle {
+      bottom: 26%;
+      width: 68%;
+    }
+
+    .cake-tier--top {
+      bottom: 52%;
+      width: 56%;
+    }
+
+    .cake-layer-frost {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: #ffd6ea;
+      clip-path: polygon(0 30%, 100% 30%, 100% 100%, 0 100%);
+    }
+
+    .cake-dot {
+      position: absolute;
+      width: 10%;
+      height: 30%;
+      border-radius: 999px;
+      background: #fff;
+      bottom: 18%;
+    }
+
+    .cake-dot:nth-child(1) {
+      left: 14%;
+    }
+
+    .cake-dot:nth-child(2) {
+      left: 35%;
+    }
+
+    .cake-dot:nth-child(3) {
+      left: 56%;
+    }
+
+    .cake-dot:nth-child(4) {
+      left: 77%;
+    }
+
+    .candle-stem {
+      position: absolute;
+      width: 6%;
+      height: 24%;
+      left: 50%;
+      bottom: 70%;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      background: #fffbff;
+    }
+
+    .candle-flame {
+      position: absolute;
+      width: 13%;
+      aspect-ratio: 1 / 1.3;
+      left: 50%;
+      bottom: 86%;
+      transform: translateX(-50%);
+      background: radial-gradient(circle at 30% 0, #fff, #ffd76b 60%, #ff9900);
+      border-radius: 50% 50% 50% 50% / 65% 65% 35% 35%;
+      box-shadow: 0 0 18px rgba(255, 210, 110, 0.85);
+      animation: flame-flicker 1.8s ease-in-out infinite;
+    }
+
+    /* Confetti sprinkles on purple cake slide */
+    .confetti {
+      position: absolute;
+      inset: -10% -10% 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 30px;
+      border-radius: 4px;
+      opacity: 0.85;
+      transform: translate3d(0, -120%, 0) rotateZ(0deg);
+      animation: confetti-fall 4s linear infinite;
+    }
+
+    .confetti-piece:nth-child(3n) {
+      background: #ffdf6b;
+    }
+
+    .confetti-piece:nth-child(3n + 1) {
+      background: #ff7ba5;
+    }
+
+    .confetti-piece:nth-child(3n + 2) {
+      background: #7dd3fc;
+    }
+
+    /* Different initial positions / delays */
+    .confetti-piece:nth-child(1) {
+      left: 10%;
+      animation-delay: 0s;
+    }
+
+    .confetti-piece:nth-child(2) {
+      left: 26%;
+      animation-delay: 0.2s;
+    }
+
+    .confetti-piece:nth-child(3) {
+      left: 42%;
+      animation-delay: 0.4s;
+    }
+
+    .confetti-piece:nth-child(4) {
+      left: 58%;
+      animation-delay: 0.1s;
+    }
+
+    .confetti-piece:nth-child(5) {
+      left: 74%;
+      animation-delay: 0.3s;
+    }
+
+    .confetti-piece:nth-child(6) {
+      left: 90%;
+      animation-delay: 0.5s;
+    }
+
+    .confetti-piece:nth-child(7) {
+      left: 18%;
+      animation-delay: 0.7s;
+    }
+
+    .confetti-piece:nth-child(8) {
+      left: 34%;
+      animation-delay: 0.9s;
+    }
+
+    .confetti-piece:nth-child(9) {
+      left: 50%;
+      animation-delay: 0.6s;
+    }
+
+    .confetti-piece:nth-child(10) {
+      left: 66%;
+      animation-delay: 0.8s;
+    }
+
+    .confetti-piece:nth-child(11) {
+      left: 82%;
+      animation-delay: 1s;
+    }
+
+    .confetti-piece:nth-child(12) {
+      left: 4%;
+      animation-delay: 1.1s;
+    }
+
+    /* Fireworks scene ------------------------------------------------------- */
+
+    .scene4-inner {
+      text-align: center;
+      color: #fff;
+    }
+
+    .firework {
+      position: absolute;
+      bottom: 40%;
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, rgba(255, 255, 0, 0.8), transparent 55%),
+        radial-gradient(circle, rgba(255, 0, 0, 0.8), transparent 65%);
+      mix-blend-mode: screen;
+      opacity: 0.3;
+    }
+
+    .firework--left {
+      left: 8%;
+    }
+
+    .firework--center {
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .firework--right {
+      right: 8%;
+    }
+
+    .scene4-title {
+      font-family: var(--font-script);
+      font-size: clamp(2.3rem, 3vw, 3.6rem);
+      white-space: nowrap;
+      text-shadow: 0 0 18px rgba(255, 255, 255, 0.45);
+      margin-bottom: 2.3rem;
+    }
+
+    .scene4-btn {
+      margin-top: 0.5rem;
+    }
+
+    /* Blue birthday card scenes ------------------------------------------- */
+
+    .scene7-layout {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+
+    .bunting-row {
+      position: absolute;
+      top: 12%;
+      left: 0;
+      right: 0;
+      height: 70px;
+    }
+
+    .bunting-row::before,
+    .bunting-row::after {
+      content: "";
+      position: absolute;
+      left: -5%;
+      right: -5%;
+      top: 0;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.7);
+    }
+
+    .flag {
+      position: absolute;
+      top: 6px;
+      width: 0;
+      height: 0;
+      border-left: 25px solid transparent;
+      border-right: 25px solid transparent;
+      border-top: 40px solid #ffffff;
+      opacity: 0.95;
+    }
+
+    .flag:nth-child(1) {
+      left: 6%;
+      border-top-color: #ffffff;
+    }
+
+    .flag:nth-child(2) {
+      left: 14%;
+      border-top-color: #2563eb;
+    }
+
+    .flag:nth-child(3) {
+      left: 22%;
+      border-top-color: #ffffff;
+    }
+
+    .flag:nth-child(4) {
+      left: 30%;
+      border-top-color: #2563eb;
+    }
+
+    .flag:nth-child(5) {
+      left: 64%;
+      border-top-color: #facc15;
+    }
+
+    .flag:nth-child(6) {
+      left: 72%;
+      border-top-color: #22c55e;
+    }
+
+    .flag:nth-child(7) {
+      left: 80%;
+      border-top-color: #ec4899;
+    }
+
+    .flag:nth-child(8) {
+      left: 88%;
+      border-top-color: #38bdf8;
+    }
+
+    .balloon {
+      position: absolute;
+      width: 80px;
+      height: 110px;
+      border-radius: 50px 50px 45px 45px;
+      background: radial-gradient(circle at 30% 20%, #fff, #60a5fa 40%, #1e40af);
+      box-shadow: 0 14px 35px rgba(15, 23, 42, 0.6);
+      opacity: 0.9;
+    }
+
+    .balloon--left {
+      left: 4%;
+      bottom: 10%;
+    }
+
+    .balloon--right {
+      right: 4%;
+      bottom: 8%;
+    }
+
+    .card-outer {
+      position: absolute;
+      inset: 18% 24%;
+      perspective: 1200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-panel {
+      position: absolute;
+      width: 64%;
+      height: 80%;
+      background: #fdfdfd;
+      box-shadow: 0 18px 30px rgba(0, 0, 0, 0.45);
+      border-radius: 6px;
+    }
+
+    /* Closed upright card (slides 7 & 9) */
+    .card-closed {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.3rem;
+      padding: 1.4rem 1.2rem;
+      text-align: center;
+    }
+
+    .card-closed .card-cake {
+      width: 72px;
+      height: 72px;
+      border-radius: 12px;
+      background: #ff7b9d;
+      margin: 0 auto 0.3rem;
+      position: relative;
+    }
+
+    .card-closed .card-cake::before {
+      content: "";
+      position: absolute;
+      inset: 15% 8% 45%;
+      border-radius: 12px 12px 6px 6px;
+      background: #ffebf3;
+    }
+
+    .card-closed .card-cake::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -18%;
+      width: 6px;
+      height: 26px;
+      border-radius: 999px;
+      transform: translateX(-50%);
+      background: #fefce8;
+      box-shadow: 0 -6px 12px rgba(255, 255, 255, 0.85);
+    }
+
+    .card-closed h2 {
+      font-size: 1.4rem;
+      letter-spacing: 0.08em;
+    }
+
+    .card-closed h2 span {
+      display: block;
+      font-size: 1rem;
+      letter-spacing: 0.12em;
+      margin-top: 0.3rem;
+    }
+
+    /* Opened double-page card (slide 8) */
+    .card-open {
+      display: flex;
+      padding: 1.3rem 1.4rem;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.9rem;
+      transform: rotateZ(-4deg);
+    }
+
+    .card-left,
+    .card-right {
+      width: 48%;
+    }
+
+    .card-left {
+      background: radial-gradient(circle at 30% 30%, #f3f4f6, #e5e7eb);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-left svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .card-right-heading {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-signoff {
+      margin-top: 0.9rem;
+      text-align: right;
+      font-style: italic;
+    }
+
+    /* Detailed teddy SVG on slide 3 */
+    .bear-card {
+      margin-top: 0.4rem;
+      width: min(70%, 420px);
+      aspect-ratio: 16 / 9;
+      border-radius: 24px;
+      box-shadow: 0 16px 35px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+      background: linear-gradient(135deg, #ffe9f2, #ffffff);
+    }
+
+    .bear-card svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* RADIO → SLIDE VISIBILITY MAPPING ------------------------------------- */
+
+    #slide1:checked~.slides .slide--1,
+    #slide2:checked~.slides .slide--2,
+    #slide3:checked~.slides .slide--3,
+    #slide4:checked~.slides .slide--4,
+    #slide5:checked~.slides .slide--5,
+    #slide6:checked~.slides .slide--6,
+    #slide7:checked~.slides .slide--7,
+    #slide8:checked~.slides .slide--8,
+    #slide9:checked~.slides .slide--9 {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+    }
+
+    /* BACKGROUND PER SLIDE ------------------------------------------------- */
+
+    .slide--1 {
+      background: var(--grad-1);
+    }
+
+    .slide--2 {
+      background: var(--grad-2);
+    }
+
+    .slide--3 {
+      background: var(--grad-3);
+    }
+
+    .slide--4 {
+      background: var(--grad-4);
+    }
+
+    .slide--5 {
+      background: var(--grad-5);
+    }
+
+    .slide--6 {
+      background: var(--grad-6);
+    }
+
+    .slide--7,
+    .slide--8,
+    .slide--9 {
+      background: var(--grad-7);
+    }
+
+    /* Misc small details */
+    .tiny-note {
+      position: absolute;
+      bottom: 6px;
+      right: 12px;
+      font-size: 0.7rem;
+      opacity: 0.45;
+      color: #f9fafb;
+    }
+
+    /* Animations for flame + confetti -------------------------------------- */
+    @keyframes flame-flicker {
+
+      0%,
+      100% {
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+
+      30% {
+        transform: translateX(-52%) translateY(-2%) scale(1.05);
+      }
+
+      60% {
+        transform: translateX(-48%) translateY(1%) scale(0.97);
+      }
+    }
+
+    @keyframes confetti-fall {
+      0% {
+        transform: translate3d(0, -120%, 0) rotateZ(0deg);
+      }
+
+      100% {
+        transform: translate3d(-10px, 140%, 0) rotateZ(360deg);
+      }
+    }
+
+    /* Reduced motion preference: keep slides static, only manual switching */
+    @media (prefers-reduced-motion: reduce) {
+
+      .candle-flame,
+      .confetti-piece {
+        animation: none !important;
+      }
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 600px) {
+      :root {
+        --canvas-radius: 16px;
+      }
+
+      .upper-icons {
+        font-size: 1.2rem;
+      }
+
+      .slide-inner {
+        height: 90%;
+      }
+
+      .nav-bar {
+        bottom: 6px;
+      }
+    }
+
+    /* Slide 3 specific tweak: nudge the (cake) emoji slightly down from the word */
+    .slide--3 .chat-bubble .emoji {
+      position: relative;
+      top: 0.2em;
+      /* move emoji a bit lower so it sits below the text baseline */
+    }
+
+    /* Enter My Day trigger – still looks like a button, but is a label that switches to slide 4 */
+    .btn-pill--enter-day {
+      cursor: pointer;
+    }
+
+    .btn-pill--enter-day:focus-visible {
+      outline: 2px solid #ffffff;
+      outline-offset: 3px;
+    }
+
+    /* Replace teddy image card with a video placeholder */
+    .bear-video {
+      margin-top: 0.4rem;
+      width: min(70%, 420px);
+      aspect-ratio: 16 / 9;
+      border-radius: 24px;
+      box-shadow: 0 16px 35px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+      background: #000;
+      display: block;
+    }
+
+    .bear-video video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Polaroid grid for slide 4 */
+    .scene4-inner {
+      text-align: center;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+    }
+
+    .scene4-grid {
+      width: min(90%, 720px);
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1.2rem;
+    }
+
+    .polaroid {
+      background: #f9fafb;
+      color: #111827;
+      border-radius: 12px;
+      padding: 0.8rem 0.6rem 1.1rem;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 150px;
+    }
+
+    .polaroid__photo {
+      width: 100%;
+      aspect-ratio: 3 / 4;
+      border-radius: 8px;
+      background: #e5e7eb;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+
+    .polaroid__caption {
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+    }
+
+    /* Slight different rotations for a playful layout */
+    .polaroid:nth-child(1) {
+      transform: rotate(-4deg);
+    }
+
+    .polaroid:nth-child(2) {
+      transform: rotate(2deg);
+    }
+
+    .polaroid:nth-child(3) {
+      transform: rotate(-2deg);
+    }
+
+    .polaroid:nth-child(4) {
+      transform: rotate(4deg);
+    }
+
+    /* For-you button acts as Next → slide 5 */
+    .scene4-btn-for-you {
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+
+    .scene4-btn-for-you:focus-visible {
+      outline: 2px solid #fbbf24;
+      outline-offset: 3px;
+    }
+
+    @media (max-width: 700px) {
+      .scene4-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        row-gap: 1.4rem;
+      }
+    }
+
+    /* Make polaroid images fully visible instead of zoomed */
+    .polaroid__photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      /* prevents zoom/cropping */
+      object-position: center;
+    }
+
+    .card-scene {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1800px;
+    }
+
+    .card-wrapper {
+      width: min(80%, 460px);
+      height: min(80%, 320px);
+      position: relative;
+    }
+
+    .card-book {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      /* allow 3D faces */
+      transition: transform 0.9s cubic-bezier(0.4, 0, 0.2, 1);
+      /* smooth flip */
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      backface-visibility: hidden;
+      /* hide reverse side */
+      cursor: pointer;
+    }
+
+    /* FRONT = COVER */
+    .card-cover {
+      background: linear-gradient(135deg, #fee2ff, #e5e7ff);
+      text-align: center;
+      transform: rotateY(0deg);
+    }
+
+    .cover-content h2 {
+      font-size: 1.6rem;
+      letter-spacing: .06em;
+      font-weight: 700;
+    }
+
+    .cover-content h2 span {
+      display: block;
+      margin-top: .4rem;
+      font-size: 1.1rem;
+    }
+
+    .cover-cake {
+      width: 80px;
+      height: 80px;
+      border-radius: 14px;
+      background: #ff7b9d;
+      margin: 0 auto 1rem;
+      position: relative;
+    }
+
+    .cover-cake::before {
+      content: "";
+      position: absolute;
+      inset: 15% 10% 45%;
+      background: #ffe7f1;
+      border-radius: 12px 12px 6px 6px;
+    }
+
+    .cover-cake::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -18%;
+      transform: translateX(-50%);
+      width: 7px;
+      height: 26px;
+      border-radius: 999px;
+      background: #fff7db;
+      box-shadow: 0 -6px 12px rgba(255, 255, 255, .9);
+    }
+
+    .tap-msg {
+      margin-top: 1rem;
+      font-size: .9rem;
+      opacity: .7;
+    }
+
+    /* BACK = INSIDE SPREAD */
+    .card-inside {
+      background: #f3f4f6;
+      transform: rotateY(180deg);
+      /* turned around, becomes visible when parent flips */
+    }
+
+    /* keep the whole message INSIDE the white box */
+    .inside-spread {
+      box-sizing: border-box;
+      height: 100%;
+      max-height: 100%;
+      overflow-y: auto;
+      /* if text is long, scroll inside the white box */
+      align-items: flex-start;
+      /* top-align pages instead of centering */
+    }
+
+    .inside-page {
+      align-items: flex-start;
+      /* content starts at top */
+    }
+
+    .inside-page--right {
+      justify-content: flex-start;
+      text-align: left;
+      /* optional, looks better for long text */
+      padding-top: 0.5rem;
+      /* small top padding so text doesn't touch border */
+      padding-bottom: 0.75rem;
+      /* space at bottom */
+    }
+
+
+    .inside-page--right h3 {
+      font-size: 1.2rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: .8rem;
+    }
+
+    .inside-page--right p {
+      font-size: .95rem;
+      line-height: 1.5;
+      color: #1f2937;
+      text-align: center;
+    }
+
+    .inside-page--right .signoff {
+      margin-top: 1rem;
+      font-style: italic;
+    }
+
+    .inside-page--right .tap-msg {
+      margin-top: .6rem;
+      font-size: .85rem;
+    }
+
+    /* RADIO → FULL CARD FLIP (front <-> back) */
+    #card-open:checked~.slides .slide--7 .card-book {
+      transform: rotateY(180deg);
+      /* show back side */
+    }
+
+    #card-closed:checked~.slides .slide--7 .card-book {
+      transform: rotateY(0deg);
+      /* show front side */
+    }
+
+    .card-face:focus-visible {
+      outline: 3px solid #fbbf24;
+      outline-offset: 4px;
+    }
+
+    @media (max-width:600px) {
+      .card-wrapper {
+        width: 90%;
+        height: 70%;
+      }
+    }
+
+
+    /* Responsive tweaks: MOBILE FULLSCREEN */
+    @media (max-width: 600px) {
+      :root {
+        --canvas-radius: 0;
+        /* flatten corners on mobile */
+      }
+
+      body {
+        padding: 0;
+        margin: 0;
+        /* Let the canvas sit edge-to-edge instead of centered with space */
+        display: block;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .birthday-canvas {
+        width: 100vw;
+        height: 100vh;
+        /* FULL SCREEN */
+        max-width: none;
+        aspect-ratio: auto;
+        /* override 16:9 so it can fill height */
+        border-radius: 0;
+        box-shadow: none;
+      }
+
+      .slide-inner {
+        width: 100%;
+        height: 100%;
+      }
+
+      .upper-icons {
+        top: 6%;
+        width: 90%;
+        font-size: 1.1rem;
+      }
+
+      .nav-bar {
+        bottom: 8px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="birthday-canvas"
+    aria-label="Interactive birthday card that advances slides only when buttons are pressed.">
+
+    <!--
+      RADIO TOGGLES FOR SLIDES
+      Each input controls which slide is active. Slide 1 is selected by default.
+    -->
+    <input id="slide1" class="slide-toggle" type="radio" name="slide" checked />
+    <input id="slide2" class="slide-toggle" type="radio" name="slide" />
+    <input id="slide3" class="slide-toggle" type="radio" name="slide" />
+    <input id="slide4" class="slide-toggle" type="radio" name="slide" />
+    <input id="slide5" class="slide-toggle" type="radio" name="slide" />
+    <input id="slide6" class="slide-toggle" type="radio" name="slide" />
+    <input id="slide7" class="slide-toggle" type="radio" name="slide" />
+    <input id="slide8" class="slide-toggle" type="radio" name="slide" />
+    <input id="slide9" class="slide-toggle" type="radio" name="slide" />
+
+    <input id="card-closed" class="slide-toggle" type="radio" name="cardstate" checked />
+    <input id="card-open" class="slide-toggle" type="radio" name="cardstate" />
+
+    <!--
+      SLIDES: each .slide--N matches one of your screenshots in order.
+
+      Slide mapping:
+      1 → pastel purple, “It’s a special day for me…💕”
+      2 → pastel pink, “I have something for you…”
+      3 → purple, first message + Enter My Day button + hugging teddies
+      4 → black sky with fireworks + “HappiestBirthday, Khushi” + button
+      5 → soft pink “Let’s Cut the Cake!” + cake, no confetti
+      6 → purple “Let’s Cut the Cake!” + cake + confetti + “Next Page →”
+      7 → blue bunting + closed birthday card (front)
+      8 → blue bunting + opened card with penguin art & letter
+      9 → blue bunting + closed card again, slightly rotated
+    -->
+
+    <section class="slides">
+
+      <!-- Slide 1 -------------------------------------------------------- -->
+      <section class="slide slide--1" aria-label="Pastel screen saying It's a special day for me with hearts.">
+        <div class="slide-inner">
+          <div class="bokeh bokeh--left"></div>
+          <div class="bokeh bokeh--right"></div>
+
+          <div class="upper-icons">
+            <span>✨</span>
+            <span>🎂</span>
+            <span>🎀</span>
+          </div>
+
+          <div class="chat-stack">
+            <!--
+              Label is wired to radio #slide2:
+              - clicking or pressing Enter/Space will check #slide2 and show slide 2
+              - tabindex + role + aria-label keep it accessible
+            -->
+            <label for="slide2" class="chat-bubble chat-bubble--trigger" tabindex="0" role="button"
+              aria-label="Go to the next birthday slide">
+              <span>It's a special day for you...</span>
+              <span class="emoji">🥺</span>
+            </label>
+
+            <div class="chat-hearts">💕</div>
+          </div>
+
+          <!-- Only Restart button remains on slide 1 -->
+          <!-- <div class="nav-bar">
+            <label class="nav-btn" for="slide1">Restart</label>
+          </div> -->
+        </div>
+      </section>
+
+      <!-- Slide 2 -------------------------------------------------------- -->
+      <section class="slide slide--2" aria-label="Pink screen saying I have something for you.">
+        <div class="slide-inner">
+          <div class="bokeh bokeh--left"></div>
+          <div class="bokeh bokeh--right"></div>
+
+          <div class="upper-icons">
+            <span>✨</span>
+            <span>🎂</span>
+            <span>🎀</span>
+          </div>
+
+          <div class="chat-stack">
+            <!--
+        Turn the text bubble into the Next trigger:
+        - label for="slide3" checks radio #slide3 (goes to slide 3)
+        - tabindex + role + aria-label keep it keyboard accessible.
+      -->
+            <label for="slide3" class="chat-bubble chat-bubble--trigger" style="color:#4c1d95;" tabindex="0"
+              role="button" aria-label="Go to the next birthday slide">
+              <span class="emoji">✨</span>
+              <span>I have something for you...</span>
+            </label>
+
+            <div class="chat-hearts">🤍</div>
+          </div>
+
+          <!-- Nav: no Next button, only Previous + Restart -->
+          <div class="nav-bar">
+            <label class="nav-btn" for="slide1">← Previous</label>
+            <!-- <label class="nav-btn" for="slide1">Restart</label> -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 3 -------------------------------------------------------- -->
+      <section class="slide slide--3"
+        aria-label="Purple screen with message, Enter My Day button, and a video placeholder.">
+        <div class="slide-inner">
+          <div class="bokeh bokeh--left"></div>
+          <div class="bokeh bokeh--right"></div>
+
+          <div class="upper-icons">
+            <span>✨</span>
+            <!-- <span>🎂</span> -->
+            <span>🎀</span>
+          </div>
+
+          <div class="chat-stack">
+            <div class="chat-bubble">
+              <span class="emoji">🎂</span>
+              <span>It's a special day for you...</span>
+
+            </div>
+            <div class="chat-hearts">💕</div>
+
+            <!--
+        Enter My Day now advances to slide 4:
+        - label for="slide4" checks the radio #slide4 (opens next page)
+        - role + tabindex keep it accessible as a button
+      -->
+            <label for="slide4" class="btn-pill btn-pill--enter-day" role="button" tabindex="0"
+              aria-label="Enter my day and go to the next slide">
+              <span class="icon">✨</span> Enter My Day <span class="icon">👉</span>
+            </label>
+
+            <!-- Video placeholder instead of image; replace src when you have your real video -->
+            <div class="bear-video" role="group" aria-label="Birthday video placeholder">
+              <video controls muted loop>
+                <source src="teddy.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+
+          <!-- Navigation bar: remove Next & Previous on slide 3, keep optional Restart if you want -->
+          <!-- <div class="nav-bar">
+            <label class="nav-btn" for="slide1">Restart</label>
+          </div> -->
+        </div>
+      </section>
+
+      <!-- Slide 4 -------------------------------------------------------- -->
+      <section class="slide slide--4"
+        aria-label="Four polaroid photos spelling Happy Birthday to Name with a For You button.">
+        <div class="slide-inner scene4-inner">
+          <div class="scene4-grid" aria-label="Polaroid photo grid">
+            <!-- Polaroid 1: HAPPY -->
+            <figure class="polaroid">
+              <div class="polaroid__photo">
+                <!-- Replace this with your own <img src="..." alt="..."> -->
+                <img src="img4.jpeg" alt="Happy photo" />
+              </div>
+              <figcaption class="polaroid__caption">HAPPY</figcaption>
+            </figure>
+
+            <!-- Polaroid 2: BIRTHDAY -->
+            <figure class="polaroid">
+              <div class="polaroid__photo">
+                <img src="img1.jpeg" alt="Birthday photo" />
+              </div>
+              <figcaption class="polaroid__caption">BIRTHDAY</figcaption>
+            </figure>
+
+            <!-- Polaroid 3: TO -->
+            <figure class="polaroid">
+              <div class="polaroid__photo">
+                <img src="img2.jpeg" alt="To photo" />
+              </div>
+              <figcaption class="polaroid__caption">TO</figcaption>
+            </figure>
+
+            <!-- Polaroid 4: NAME (change text to your person's name) -->
+            <figure class="polaroid">
+              <div class="polaroid__photo">
+                <img src="img3.jpeg" alt="Name photo" />
+              </div>
+              <figcaption class="polaroid__caption">TANU ♡</figcaption>
+            </figure>
+          </div>
+
+          <!-- For You button – advances to slide 5 -->
+          <label for="slide5" class="btn-pill scene4-btn-for-you" role="button" tabindex="0"
+            aria-label="Go to the next slide, this is for you">
+            For you
+          </label>
+
+          <!-- Keep or remove nav bar below if you still want manual Previous/Restart controls
+         (here it stays as-is from your earlier code) -->
+          <div class="nav-bar">
+            <label class="nav-btn" for="slide3">← Previous</label>
+            <!-- <label class="nav-btn" for="slide1">Restart</label> -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 5 -------------------------------------------------------- -->
+      <section class="slide slide--5"
+        aria-label="Soft pink background with Let's Cut the Cake and simple cake illustration.">
+        <div class="slide-inner">
+          <div class="cake-layout">
+            <h2 class="cake-title">
+              Let's Blow The Candle! <span class="emoji">🕯️</span>
+            </h2>
+
+            <div class="cake">
+              <div class="cake-tier cake-tier--bottom">
+                <div class="cake-layer-frost">
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                </div>
+              </div>
+              <div class="cake-tier cake-tier--middle">
+                <div class="cake-layer-frost">
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                </div>
+              </div>
+              <div class="cake-tier cake-tier--top">
+                <div class="cake-layer-frost">
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                </div>
+              </div>
+              <div class="candle-stem"></div>
+              <div class="candle-flame"></div>
+            </div>
+            <label for="slide6" class="btn-pill" role="button" tabindex="0" aria-label="Go to the next slide">
+              Blow →
+            </label>
+          </div>
+
+          <!-- <div class="nav-bar">
+            <label class="nav-btn" for="slide4">← Previous</label>
+            <label class="nav-btn nav-btn--accent" for="slide6">Next →</label>
+            <label class="nav-btn" for="slide1">Restart</label>
+          </div> -->
+        </div>
+      </section>
+
+      <!-- Slide 6 -------------------------------------------------------- -->
+      <section class="slide slide--6" aria-label="Purple cake scene with falling confetti and Next Page button.">
+        <div class="slide-inner">
+          <div class="confetti" aria-hidden="true">
+            <!-- 12 confetti pieces for performance; CSS repeats fall animation -->
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+            <div class="confetti-piece"></div>
+          </div>
+
+          <div class="cake-layout">
+            <h2 class="cake-title">
+              Let's Cut the Cake! <span class="emoji">🎂</span>
+            </h2>
+
+            <div class="cake">
+              <div class="cake-tier cake-tier--bottom">
+                <div class="cake-layer-frost">
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                </div>
+              </div>
+              <div class="cake-tier cake-tier--middle">
+                <div class="cake-layer-frost">
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                </div>
+              </div>
+              <div class="cake-tier cake-tier--top">
+                <div class="cake-layer-frost">
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                  <div class="cake-dot"></div>
+                </div>
+              </div>
+              <div class="candle-stem"></div>
+              <!-- <div class="candle-flame"></div> -->
+            </div>
+
+            <label for="slide7" class="btn-pill" role="button" tabindex="0" aria-label="Go to the next slide">
+              Cut →
+            </label>
+          </div>
+
+          <!-- <div class="nav-bar">
+            <label class="nav-btn" for="slide5">← Previous</label>
+            <label class="nav-btn nav-btn--accent" for="slide7">Next →</label>
+            <label class="nav-btn" for="slide1">Restart</label>
+          </div> -->
+        </div>
+      </section>
+
+      <!-- Slide 7 -------------------------------------------------------- -->
+      <section class="slide slide--7" aria-label="Greeting card that flips front and back">
+        <div class="slide-inner card-scene">
+          <div class="card-wrapper">
+            <div class="card-book">
+
+              <!-- FRONT (Cover) – click/tap to flip to back -->
+              <label for="card-open" class="card-face card-cover" tabindex="0" role="button"
+                aria-label="Flip card to see inside">
+                <div class="cover-content">
+                  <div class="cover-cake"></div>
+                  <h2>HAPPIEST<br>BIRTHDAY <span>to you!</span></h2>
+                  <p class="tap-msg">Tap to flip</p>
+                </div>
+              </label>
+
+              <!-- BACK (Inside message) – click/tap to flip to front -->
+              <label for="card-closed" class="card-face card-inside" tabindex="0" role="button"
+                aria-label="Flip card back to the cover">
+                <div class="inside-spread">
+                  <div class="inside-page inside-page--left">
+                    <!-- Left page blank like your reference -->
+                  </div>
+                  <div class="inside-page inside-page--right">
+                    <h3>HAPPY BIRTHDAY TANMAY</h3>
+                    <p>
+                      Another year, another chance to chase your goals and create memories that hit different. I’m
+                      really glad to have you in my life — you bring energy, laughter, and realness wherever you go.
+
+                      Hope today treats you well, and the year ahead brings you success, strength, and everything you’ve
+                      been wishing for.
+                      Enjoy your day to the fullest! 🎂🔥🥳</p>
+                    <p class="signoff">~ Riya</p>
+                    <p class="tap-msg">Tap to flip back</p>
+                  </div>
+                </div>
+              </label>
+
+            </div>
+          </div>
+
+          <!-- Restart option at bottom -->
+          <div class="nav-bar">
+            <label class="nav-btn" for="slide1">Restart ↻</label>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+
+</html>
